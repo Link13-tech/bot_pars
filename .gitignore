@@ -7,3 +7,9 @@ __pycache__/
 *.pyo
 
 .env
+
+
+
+/test_file.xlsx
+/bot/downloads/test_file.xlsx
+/database/bot_data.sqlite3.1
