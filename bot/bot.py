@@ -12,17 +12,14 @@ from aiogram import types, F
 from handlers.start import router as start_router
 from handlers.upload import router as upload_router
 from database.db import init_db
-from parser.parser import get_prices_from_db
+from parser.parser import get_data_from_db
 
-# Загружаем переменные окружения
 load_dotenv()
 
-# Переменные окружения
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("Токен бота не найден. Убедитесь, что он есть в файле .env")
 
-# Создаем бота и диспетчер
 bot = Bot(
     token=BOT_TOKEN,
     session=AiohttpSession(),
@@ -30,7 +27,6 @@ bot = Bot(
 )
 dp = Dispatcher(storage=MemoryStorage())
 
-# Подключаем роутеры
 dp.include_router(start_router)
 dp.include_router(upload_router)
 
@@ -48,7 +44,7 @@ async def description_command(message: types.Message):
 async def show_items(message: types.Message):
     """Выводит все товары из базы данных и их цены."""
     # Получаем товары из базы данных
-    items = get_prices_from_db()
+    items = get_data_from_db()
     if items:
         response = "Список товаров:\n"
         for title, url, price in items:

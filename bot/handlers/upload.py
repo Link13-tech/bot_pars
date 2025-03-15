@@ -9,7 +9,6 @@ router = Router()
 
 @router.message(F.content_type == ContentType.DOCUMENT)
 async def handle_document(message: Message):
-    # Проверяем тип файла (Excel)
     if message.document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
         file_id = message.document.file_id
         file = await message.bot.get_file(file_id)
@@ -20,24 +19,23 @@ async def handle_document(message: Message):
         download_dir = os.path.join(base_dir, "downloads")
         os.makedirs(download_dir, exist_ok=True)
 
-        # Путь для сохранения файла
         download_path = os.path.join(download_dir, file_name)
         await message.bot.download_file(file_path, destination=download_path)
 
-        # Открываем файл с помощью pandas
         df = pd.read_excel(download_path)
 
-        # Проверка на нужные колонки
-        required_columns = {"title", "url", "xpath"}
+        required_columns = {"title", "url", "css_selector"}
         if not required_columns.issubset(df.columns):
-            await message.answer("Ошибка: В файле должны быть колонки title, url, xpath.")
+            await message.answer("Ошибка: В файле должны быть колонки title, url, css_selector.")
             return
 
-        # Сохраняем данные в БД
         for _, row in df.iterrows():
-            await save_data(row["title"], row["url"], row["xpath"])
+            await save_data(row["title"], row["url"], row["css_selector"])
 
-        file_content = "\n".join([f"Title: {row['title']}, URL: {row['url']}, XPath: {row['xpath']}" for _, row in df.iterrows()])
+        file_content = "\n".join([
+            f"Title: {row['title']}\nURL: {row['url']}\nCSS Selector: {row['css_selector']}"
+            for _, row in df.iterrows()
+        ])
 
         await message.answer(f"Файл загружен успешно! Данные сохранены в БД. Вот его содержимое:\n{file_content}")
     else:

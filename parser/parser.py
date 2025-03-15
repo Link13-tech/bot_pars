@@ -6,32 +6,26 @@ from selenium.webdriver.support import expected_conditions as ec
 import re
 import time
 import logging
-
+from selenium.webdriver.common.keys import Keys
 from database.db import DB_PATH
 
-# Настройка логирования
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 def clean_price(price_str):
-    """Очистка строки от ненужных символов, но без преобразования в число."""
+    """Очищает строку цены от лишних символов (например, пробелов или валютных символов)."""
     logger.debug(f"Исходная строка цены: {price_str}")
-
-    # Убираем все символы, кроме цифр и возможного разделителя (запятой/точки)
     cleaned_price = re.sub(r'[^\d,.]', '', price_str)
-
     logger.debug(f"Очищенная строка цены: {cleaned_price}")
-
     return cleaned_price
 
 
 def initialize_driver():
-    """Инициализация undetected_chromedriver с дополнительными проверками."""
+    """Инициализирует драйвер для парсинга с использованием undetected_chromedriver."""
     options = uc.ChromeOptions()
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-gpu')
-    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
 
@@ -43,53 +37,76 @@ def initialize_driver():
         return None
 
 
-def parse_price(url, xpath):
-    """Парсит цену с указанного URL, используя переданный XPath."""
-    if not xpath:  # Проверка на None или пустую строку
-        print(f"Ошибка: XPath для {url} не указан или пуст.")
-        return None
+def get_prices_from_search_page(url, item_name, css_selector, search_input_selector):
+    """Получает цены со страницы поиска, используя указанный CSS-селектор."""
+    driver = initialize_driver()
+    if not driver:
+        return []
 
-    driver = uc.Chrome()
+    driver.implicitly_wait(5)
     driver.get(url)
-
-    # Добавляем задержку, чтобы дать странице время для полной загрузки
-    time.sleep(3)
+    time.sleep(2)
 
     try:
-        # Явное ожидание появления элемента
-        element = WebDriverWait(driver, 10).until(
-            ec.presence_of_element_located((By.XPATH, xpath))
+        find_input = WebDriverWait(driver, 2).until(
+            ec.presence_of_element_located((By.CSS_SELECTOR, search_input_selector))
         )
-        logger.debug(f"Найден элемент для URL: {url}, текст элемента: {element.text}")
+        find_input.clear()
+        find_input.send_keys(item_name)
+        time.sleep(2)
 
-        price_str = clean_price(element.text)
-        logger.debug(f"Строка цены после очистки: {price_str}")
+        find_input.send_keys(Keys.ENTER)
+        time.sleep(2)
+
+        price_elements = driver.find_elements(By.CSS_SELECTOR, css_selector)
+        prices = [clean_price(element.text) for element in price_elements]
+        logger.debug(f"Цены с страницы: {prices}")
 
     except Exception as e:
-        price_str = None
-        logger.error(f"Ошибка при парсинге {url}: {e}")
+        logger.error(f"Ошибка при сборе цен с страницы поиска: {e}")
+        prices = []
 
     driver.quit()
-    return price_str
+    return prices
 
 
-def get_prices_from_db():
-    """Забирает данные из SQLite, парсит цены и возвращает результат без сохранения в БД."""
+def parse_and_get_average_price(url, title, css_selector, search_input_selector):
+    """Парсит цены на странице поиска и вычисляет среднюю цену."""
+    prices = get_prices_from_search_page(url, title, css_selector, search_input_selector)
+
+    if prices:
+        prices = [float(price.replace(',', '.')) for price in prices]
+        average_price = sum(prices) / len(prices)
+        logger.debug(f"Средняя цена для {title}: {average_price}")
+        return round(average_price, 2)
+    else:
+        logger.debug(f"Цены не найдены для {title}")
+        return None
+
+
+def get_data_from_db():
+    """Забирает данные из базы, парсит цены с поиска и возвращает результат."""
     try:
         logger.debug("Подключаемся к базе данных")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT title, url, xpath FROM parsed_data")
+        cursor.execute("SELECT title, url, css_selector FROM parsed_data")
         rows = cursor.fetchall()
         conn.close()
         logger.debug(f"Найдено {len(rows)} записей в базе")
 
         results = []
-        for title, url, xpath in rows:
-            logger.debug(f"Обрабатываем товар: {title}, URL: {url}, XPath: {xpath}")
-            price = parse_price(url, xpath)
-            logger.debug(f"Цена получена: {price}")
-            results.append((title, url, price))
+        for title, url, css_selector in rows:
+            logger.debug(f"Обрабатываем товар: {title}, URL: {url}, CSS Selector: {css_selector}")
+            if "wildberries" in url.lower():
+                search_input_selector = "#searchInput"
+            else:
+                search_input_selector = "[name='text']"
+
+            average_price = parse_and_get_average_price(url, title, css_selector, search_input_selector)
+            if average_price is not None:
+                logger.debug(f"Средняя цена для {title}: {average_price}")
+            results.append((title, url, average_price))
 
         logger.debug("Все цены обработаны")
         return results
