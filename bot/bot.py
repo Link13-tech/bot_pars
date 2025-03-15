@@ -12,6 +12,7 @@ from aiogram import types, F
 from handlers.start import router as start_router
 from handlers.upload import router as upload_router
 from database.db import init_db
+from parser.parser import get_prices_from_db
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -41,6 +42,20 @@ async def description_command(message: types.Message):
         "Этот бот позволяет загружать файлы Excel, которые будут использованы для парсинга сайтов. "
         "Вы можете загрузить данные, и бот будет их обрабатывать для получения информации о товарах."
     )
+
+
+@dp.message(F.text.lower() == "/items")
+async def show_items(message: types.Message):
+    """Выводит все товары из базы данных и их цены."""
+    # Получаем товары из базы данных
+    items = get_prices_from_db()
+    if items:
+        response = "Список товаров:\n"
+        for title, url, price in items:
+            response += f"{title} - {price} руб.\n\n" if price else f"{title} - Цена не найдена.\n\n"
+        await message.answer(response)
+    else:
+        await message.answer("Товары не найдены в базе данных.")
 
 
 async def main() -> None:
