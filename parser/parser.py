@@ -1,5 +1,6 @@
 import sqlite3
-import undetected_chromedriver as uc
+import chromedriver_autoinstaller
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -22,16 +23,20 @@ def clean_price(price_str):
 
 
 def initialize_driver():
-    """Инициализирует драйвер для парсинга с использованием undetected_chromedriver."""
-    options = uc.ChromeOptions()
-    options.add_argument('--disable-extensions')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-
+    """Инициализирует драйвер для парсинга с использованием chromedriver-autoinstaller."""
     try:
-        driver = uc.Chrome(options=options)
+        chromedriver_autoinstaller.install()
+
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+
+        driver = webdriver.Chrome(options=options)
         return driver
+
     except Exception as e:
         logger.error(f"Ошибка при инициализации драйвера: {e}")
         return None
@@ -75,13 +80,14 @@ def parse_and_get_average_price(url, title, css_selector, search_input_selector)
     prices = get_prices_from_search_page(url, title, css_selector, search_input_selector)
 
     if prices:
-        prices = [float(price.replace(',', '.')) for price in prices]
-        average_price = sum(prices) / len(prices)
-        logger.debug(f"Средняя цена для {title}: {average_price}")
-        return round(average_price, 2)
-    else:
-        logger.debug(f"Цены не найдены для {title}")
-        return None
+        prices = [float(price.replace(',', '.')) for price in prices if price]
+        if prices:
+            average_price = sum(prices) / len(prices)
+            logger.debug(f"Средняя цена для {title}: {average_price}")
+            return round(average_price, 2)
+
+    logger.debug(f"Цены не найдены для {title}")
+    return None
 
 
 def get_data_from_db():
