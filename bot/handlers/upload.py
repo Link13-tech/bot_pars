@@ -1,4 +1,5 @@
 import os
+import datetime
 import pandas as pd
 from aiogram import Router, F
 from aiogram.types import Message, ContentType
@@ -13,12 +14,14 @@ async def handle_document(message: Message):
         file_id = message.document.file_id
         file = await message.bot.get_file(file_id)
         file_path = file.file_path
-        file_name = message.document.file_name
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         download_dir = os.path.join(base_dir, "downloads")
         os.makedirs(download_dir, exist_ok=True)
 
+        file_name = f"items_data_{timestamp}.xlsx"
         download_path = os.path.join(download_dir, file_name)
         await message.bot.download_file(file_path, destination=download_path)
 

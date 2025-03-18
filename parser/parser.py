@@ -84,16 +84,16 @@ def parse_and_get_average_price(url, title, css_selector, search_input_selector)
         return None
 
 
-def get_data_from_db():
-    """Забирает данные из базы, парсит цены с поиска и возвращает результат."""
+def parse_items_from_db(table_name):
+    """Парсит товары из указанной таблицы в базе данных."""
     try:
-        logger.debug("Подключаемся к базе данных")
+        logger.debug(f"Подключаемся к базе данных ({table_name})")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT title, url, css_selector FROM parsed_data")
+        cursor.execute(f"SELECT title, url, css_selector FROM {table_name}")
         rows = cursor.fetchall()
         conn.close()
-        logger.debug(f"Найдено {len(rows)} записей в базе")
+        logger.debug(f"Найдено {len(rows)} записей в таблице {table_name}")
 
         results = []
         for title, url, css_selector in rows:
@@ -108,11 +108,19 @@ def get_data_from_db():
                 logger.debug(f"Средняя цена для {title}: {average_price}")
             results.append((title, url, average_price))
 
-        logger.debug("Все цены обработаны")
+        logger.debug(f"Парсинг завершен для {table_name}")
         return results
     except sqlite3.Error as e:
         logger.error(f"Ошибка при подключении к базе данных: {e}")
         return []
     except Exception as e:
-        logger.error(f"Неизвестная ошибка при получении данных из базы: {e}")
+        logger.error(f"Неизвестная ошибка при парсинге данных из {table_name}: {e}")
         return []
+
+
+def parse_all_items():
+    return parse_items_from_db("parsed_data")
+
+
+def parse_last_uploaded_items():
+    return parse_items_from_db("last_uploaded")
